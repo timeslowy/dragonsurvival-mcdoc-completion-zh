@@ -1,0 +1,499 @@
+// =====================================================================================================================
+// Additional Abilities for Dragon Survival —— 自定义技能组件的字段补全
+//
+// 本文件只负责「本模组新增的 16 个技能组件」的字段定义，原包（补全包）不需要知道本模组的存在：
+// mcdoc 的 `dispatch` 分派表是**全局**的（存于 `mcdoc/dispatcher` 类别、按资源位置索引），
+// 因此这里的 `dispatch` 会直接追加到补全包的分派表上。
+//
+// 生效前提（缺一不可）：
+//   1. 本项目的 `mcdoc/` 是补全包的**完整副本**（本文件与 `data/dragonsurvival/` 等并列），
+//      且 `additional_abilities.code-workspace` 已把 `mcdoc` 注册为工作区文件夹；
+//   2. 该副本里的 5 个枚举已追加本模组的取值（否则 `effect_type` 等会报 type mismatch）；
+//      见 `mcdoc/data/dragonsurvival/dragon_ability.mcdoc` 的
+//      ActivationType / ActivationTriggers / TargetingType / EntityEffectType / BlockEffectType。
+//
+// ⚠️ 本文件**不能**通过 `spyglass.json` 的 `env.dependencies` 外链补全包来解析 ——
+// 那种方式下补全包的 mcdoc 会以 `::mcdoc::data::...` 为模块名，而本地 `mcdoc/` 副本
+// 因为是工作区根而解析为 `::data::...`，两边名字对不上，`use` 会全部失效。
+// 现在统一走「本地副本」，两边模块名一致。
+//
+// ⚠️ 新增 `AAAbility*` 注册项时，记得回来补：
+//   - 本文件对应的 `dispatch` 分支；
+//   - 本地 `mcdoc/data/dragonsurvival/dragon_ability.mcdoc` 那 5 个枚举之一。
+// =====================================================================================================================
+
+// --- 引用补全包已定义的公共结构（同工作区内的跨模块引用） ---
+// ⚠️ 路径以 `::data::` 开头，**不带** `mcdoc::`：本项目的 .code-workspace 把 `mcdoc/` 目录
+// 本身注册成了一个工作区根（`"name": "mcdoc", "path": "../../../mcdoc"`），
+// 而 Spyglass 的模块路径是相对**最近的根**计算的，于是 `mcdoc/data/...` → `::data::...`。
+// 实证：Spyglass 符号缓存里存在 `::data::dragonsurvival::dragon_ability::DurationInstanceBase`，
+// 而 `::mcdoc::data::...` 不存在。
+// 佐证：同目录 `world/entity/generic_ball_entity.mcdoc` 用 `super::super::super::data::...`
+// 跨到这里，正是同一结论。
+use ::data::dragonsurvival::dragon_ability::EntityTargeting
+use ::data::dragonsurvival::dragon_ability::BlockTargeting
+use ::data::dragonsurvival::dragon_ability::DurationInstanceBase
+use ::data::dragonsurvival::dragon_ability::Notification
+use ::data::dragonsurvival::dragon_ability::Sound
+use ::data::dragonsurvival::dragon_ability::Animations
+use ::data::dragonsurvival::dragon_ability::SimpleTriggerPointData
+
+// --- 引用 vanilla ---
+use ::java::data::enchantment::LevelBasedValue
+use ::java::data::loot::LootCondition
+use ::java::data::advancement::predicate::ItemPredicate
+use ::java::data::worldgen::feature::block_predicate::BlockPredicate
+use ::java::util::text::TextColor
+
+// =====================================================================================================================
+// 一、实体效果（additional_abilities:ability_entity_effect）
+// =====================================================================================================================
+
+// --- additional_abilities:damage_reflection 伤害反震 ---
+dispatch dragonsurvival:ability_entity_effect[additional_abilities:damage_reflection] to struct DamageReflection {
+    /// 反震比例（0~1 小数）
+    reflection_percentage: LevelBasedValue,
+    /// 作用半径（格），计算后向下取整
+    reflection_range: LevelBasedValue,
+    /// true=沿用原伤害类型；false=用 additional_abilities:counter_shock
+    /// (默认：false)
+    use_same_damage_type?: boolean,
+}
+
+// --- additional_abilities:percentaged_damage 百分比伤害 ---
+dispatch dragonsurvival:ability_entity_effect[additional_abilities:percentaged_damage] to struct PercentagedDamage {
+    /// 伤害类型(https://zh.minecraft.wiki/w/伤害类型定义格式)
+    damage_type: #[id="damage_type"] string,
+    /// 生命值百分比（0~1 小数）
+    percentage: LevelBasedValue,
+    /// max_health=按最大生命值；current_health=按当前生命值
+    calculate_type: PercentagedDamageCalculateType,
+    /// 乘算用的属性(https://zh.minecraft.wiki/w/属性)
+    /// - 默认为 `dragonsurvival:dragon_ability_damage`
+    scale?: #[id="attribute"] string,
+    /// 最终伤害表达式，可用变量 amount / scale
+    /// (默认：`amount * scale`)
+    expression?: string,
+    /// 是否临时换成龙爪剑的攻击判定
+    /// (默认：false)
+    use_claw?: boolean,
+}
+
+enum(string) PercentagedDamageCalculateType {
+    /// 按最大生命值
+    Max_Health     = "max_health",
+    /// 按当前生命值
+    Current_Health = "current_health",
+}
+
+// --- additional_abilities:simple_screen_vision 简单屏幕视觉 ---
+dispatch dragonsurvival:ability_entity_effect[additional_abilities:simple_screen_vision] to struct SimpleScreenVision {
+    /// 身份与时长（对齐龙生「时长实例族」；本效果只用 id 与 duration）
+    base: DurationInstanceBase,
+    /// shake=镜头抖动；blur=画面模糊；edge_light=边缘遮罩
+    type: ScreenVisionType,
+    /// 强度倍率；edge_light 下读作不透明度
+    /// (默认：1.0)
+    amplifier?: LevelBasedValue,
+    /// 仅 edge_light：遮罩边缘厚度（占屏幕短边比例，钳制 0~0.5）
+    /// (默认：0.15)
+    size?: LevelBasedValue,
+    /// 仅 edge_light：遮罩颜色（原版颜色名或 #RRGGBB，不含 alpha）
+    /// (默认：white)
+    color?: (
+        #[color="hex_rgb"] string |
+        #[color="named"] TextColor |
+    ),
+    /// 生效概率，每次触发独立判定
+    /// (默认：1.0)
+    probability?: LevelBasedValue,
+}
+
+enum(string) ScreenVisionType {
+    /// 镜头抖动，amplifier 1.0 ≈ 1.5° 的 roll 偏移
+    Shake      = "shake",
+    /// 画面模糊（近似近视），amplifier 1.0 ≈ 1 像素的模糊半径
+    Blur       = "blur",
+    /// 画面边缘由边向内渐隐的遮罩
+    Edge_Light = "edge_light",
+}
+
+// --- additional_abilities:enchantment_bonus 临时附魔加成 ---
+dispatch dragonsurvival:ability_entity_effect[additional_abilities:enchantment_bonus] to struct EnchantmentBonusEffect {
+    /// 至少一条附魔加成（每条自带 base，形态对齐 dragonsurvival:harvest_bonus）
+    enchantment_bonuses: [EnchantmentBonus] @ 1..,
+}
+
+struct EnchantmentBonus {
+    /// 身份与时长（六字段全有运行时语义）
+    base: DurationInstanceBase,
+    /// 至少一条「附魔 + 等级」
+    enchantments: [EnchantmentEntry] @ 1..,
+}
+
+struct EnchantmentEntry {
+    /// 附魔 id（宝藏附魔同样可用）
+    enchantment: #[id="enchantment"] string,
+    /// 应用等级，运行时钳制到 [1, 该附魔最大等级]；写成常数越界会在解码期报错
+    /// (默认：1)
+    level?: LevelBasedValue,
+}
+
+// --- additional_abilities:durability 耐久设置 ---
+dispatch dragonsurvival:ability_entity_effect[additional_abilities:durability] to struct DurabilityEffect {
+    /// 至少一条独立规则
+    durability_changes: [DurabilityChange] @ 1..,
+}
+
+struct DurabilityChange {
+    /// 至少一项槽位
+    slots: [DurabilitySlot] @ 1..,
+    /// 物品谓词；省略 = 该槽位内全部可损坏物品
+    item?: ItemPredicate,
+    /// add=在当前耐久上加减（正数修 / 负数磨）；set=把耐久设为 amount 折算出的值
+    operation: DurabilityOperation,
+    /// 增减量 / 目标值
+    amount: LevelBasedValue,
+    /// durability=耐久点；percent=百分比
+    unit: DurabilityUnit,
+    /// ⚠️ 与 unit 严格互斥：unit=percent 时必填，unit=durability 时必须省略
+    /// （写错会在数据包加载期直接报错）
+    percent_base?: DurabilityPercentBase,
+    /// 结果耐久 ≤ 0 时是否按原版销毁物品
+    /// (默认：false)
+    break_item?: boolean,
+}
+
+enum(string) DurabilitySlot {
+    /// 主手
+    Mainhand   = "mainhand",
+    /// 副手
+    Offhand    = "offhand",
+    /// 头盔
+    Head       = "head",
+    /// 胸甲
+    Chest      = "chest",
+    /// 护腿
+    Legs       = "legs",
+    /// 靴子
+    Feet       = "feet",
+    /// 动物护甲槽（马铠、狼铠）
+    Body       = "body",
+    /// 以上全部装备槽
+    Equipment  = "equipment",
+    /// 快捷栏 9 格
+    Hotbar     = "hotbar",
+    /// 背包 36 格（含快捷栏）
+    Inventory  = "inventory",
+    /// 龙生爪牙槽：剑
+    Claw_Sword   = "claw_sword",
+    /// 龙生爪牙槽：镐
+    Claw_Pickaxe = "claw_pickaxe",
+    /// 龙生爪牙槽：斧
+    Claw_Axe     = "claw_axe",
+    /// 龙生爪牙槽：锹
+    Claw_Shovel  = "claw_shovel",
+    /// 爪牙槽 4 格
+    Claws      = "claws",
+    /// 装备槽 + 背包 36 格 + 爪牙槽 4 格
+    All        = "all",
+}
+
+enum(string) DurabilityOperation {
+    /// 在当前耐久上加减
+    Add = "add",
+    /// 把耐久设为指定值
+    Set = "set",
+}
+
+enum(string) DurabilityUnit {
+    /// 直接是耐久点数
+    Durability = "durability",
+    /// 占某个基准的百分比（基准由 percent_base 指定）
+    Percent    = "percent",
+}
+
+enum(string) DurabilityPercentBase {
+    /// 占最大耐久的比例
+    Max_Durability     = "max_durability",
+    /// 占当前耐久的比例
+    Current_Durability = "current_durability",
+}
+
+// =====================================================================================================================
+// 二、方块效果（additional_abilities:ability_block_effect）
+// =====================================================================================================================
+
+// --- additional_abilities:block_quake 方块震动 ---
+dispatch dragonsurvival:ability_block_effect[additional_abilities:block_quake] to struct BlockQuake {
+    /// 高度倍率（实际高度 = min(3.0, 0.5 × amplifier)）
+    /// (默认：0.5)
+    amplifier?: LevelBasedValue,
+    /// 生效概率，每个方块独立判定
+    /// (默认：1.0)
+    probability?: LevelBasedValue,
+    /// 方块谓词；省略 = 全匹配
+    /// 注意这里走的是**世界生成版**方块谓词（按 "type" 分派，如 minecraft:matching_block_tag）
+    valid_blocks?: BlockPredicate,
+    /// 跃起时播放的音效（直接写注册 id）
+    sound?: #[id="sound_event"] string,
+}
+
+// --- additional_abilities:extinguish 熄灭 ---
+dispatch dragonsurvival:ability_block_effect[additional_abilities:extinguish] to struct Extinguish {
+    /// 只作用于火焰方块（营火与蜡烛无条件熄灭）
+    /// (默认：1.0)
+    extinguish_probability?: LevelBasedValue,
+}
+
+// --- additional_abilities:glow 方块发光 ---
+dispatch dragonsurvival:ability_block_effect[additional_abilities:glow] to struct BlockGlow {
+    /// 颜色：16 个原版颜色名，或 #RRGGBB
+    /// ⚠️ # 分支按 16 进制整数解析，必须写满 6 位；不支持 alpha
+    color: (
+        #[color="hex_rgb"] string |
+        #[color="named"] TextColor |
+    ),
+    /// 不透明度（0 等于不可见，会被跳过）
+    /// (默认：1.0)
+    alpha?: float @ 0.0..1.0,
+    /// outline=线框；simple_shader=整块染色
+    /// (默认：outline)
+    display_type?: BlockGlowDisplayType,
+    /// 发光时长（刻），钳制 1~1200
+    /// (默认：60)
+    duration?: LevelBasedValue,
+    /// 生效概率，每个方块独立判定
+    /// (默认：1.0)
+    probability?: LevelBasedValue,
+    /// 方块谓词；省略 = 全匹配
+    /// 注意这里走的是**世界生成版**方块谓词（按 "type" 分派，如 minecraft:matching_block_tag）
+    valid_blocks?: BlockPredicate,
+    /// 是否剔除被完全遮挡的方块（只对 simple_shader 生效）
+    /// (默认：true)
+    hide_occluded?: boolean,
+}
+
+enum(string) BlockGlowDisplayType {
+    /// 线框描边：沿方块边界画 12 条棱
+    Outline       = "outline",
+    /// 整体染色：复用龙生的 block_vision 着色器给方块模型染色
+    Simple_Shader = "simple_shader",
+}
+
+// =====================================================================================================================
+// 三、目标选择器（additional_abilities:ability_targeting）
+// =====================================================================================================================
+
+// --- additional_abilities:anti_dragon_breath 反向龙息锥形 ---
+dispatch dragonsurvival:ability_targeting[additional_abilities:anti_dragon_breath] to struct AntiDragonBreathTarget {
+    /// 定义效果的执行类型以及效果
+    applied_effects: (
+        BlockTargeting |
+        EntityTargeting |
+    ),
+    /// 与施法者的 dragonsurvival:dragon_breath_range 属性相乘得到实际射程
+    /// （锥体朝施法者身后延伸）
+    range_multiplier: LevelBasedValue,
+}
+
+// --- additional_abilities:annulus 环形 ---
+dispatch dragonsurvival:ability_targeting[additional_abilities:annulus] to struct AnnulusTarget {
+    /// 定义效果的执行类型以及效果
+    applied_effects: (
+        BlockTargeting |
+        EntityTargeting |
+    ),
+    /// 内圈半径（格）：这个范围以内不会被选中
+    inner_radius: LevelBasedValue,
+    /// 环宽（格），沿径向由内向外叠加（外半径 = inner_radius + width）
+    width: LevelBasedValue,
+    /// 厚度（格）
+    /// (默认：1)
+    height?: LevelBasedValue,
+    /// false → Y 区间 [y, y+height]；true → [y-1, y+height-1]
+    /// (默认：false)
+    height_starts_below?: boolean,
+}
+
+// --- additional_abilities:domain 领域 ---
+dispatch dragonsurvival:ability_targeting[additional_abilities:domain] to struct DomainTarget {
+    /// 定义效果的执行类型以及效果
+    applied_effects: (
+        BlockTargeting |
+        EntityTargeting |
+    ),
+    /// 半径（格）：球/方 = 每轴半边长；柱形 = 水平半径
+    radius: LevelBasedValue,
+    /// 领域存活 tick
+    duration: LevelBasedValue,
+    /// sphere / cube / cylinder
+    /// (默认：sphere)
+    shape?: DomainShape,
+    /// 仅柱形：从锚点向上额外延伸的格数（默认 = radius）
+    height?: LevelBasedValue,
+    /// 仅柱形
+    /// (默认：false)
+    height_starts_below?: boolean,
+    /// 每 N tick 结算一次
+    /// (默认：20)
+    apply_interval?: LevelBasedValue,
+    /// casting_position=施法位置永久固定；caster=跟随施法者
+    /// (默认：casting_position)
+    anchor?: DomainAnchor,
+    /// 同一技能同时存在几次施法的领域上限（超出时顶掉最旧的一个）
+    /// (默认：1)
+    max_domains?: int,
+    /// 消散前对范围内目标调一次 remove
+    /// (默认：false)
+    remove_effects_on_end?: boolean,
+}
+
+enum(string) DomainShape {
+    /// 球形：锚点 ± radius（三轴等长），再做三维距离精筛
+    Sphere   = "sphere",
+    /// 方形：锚点 ± radius（三轴等长），包围盒即判定区
+    Cube     = "cube",
+    /// 柱形：水平 ± radius，Y 由 height 决定
+    Cylinder = "cylinder",
+}
+
+enum(string) DomainAnchor {
+    /// 首次结算瞬间的施法者脚部位置，此后永久固定
+    Casting_Position = "casting_position",
+    /// 每 tick 结算时取施法者当时的位置，领域跟随移动
+    Caster           = "caster",
+}
+
+// =====================================================================================================================
+// 四、激活类型（additional_abilities:activation）
+// =====================================================================================================================
+
+// --- additional_abilities:charged / optional_charged 蓄力档位 ---
+dispatch dragonsurvival:activation[additional_abilities:charged] to struct ChargedActivation {
+    /// 各档位所需蓄力时长（tick）
+    charged_duration_per_level: LevelBasedValue,
+    /// 总蓄力上限（tick），必填且必须为正
+    cast_time: LevelBasedValue,
+    /// 能否按满后继续按住不释放
+    /// (默认：false；optional_charged 默认 true)
+    can_charge_exceed_cast_time?: boolean,
+    /// 超限窗口长度（tick）：须为正，且只在开启 can_charge_exceed_cast_time 时可写
+    /// (默认：不配置 = 无限按住，只有松手才释放)
+    max_overcharged_duration?: LevelBasedValue,
+    /// 冷却（按最终档位结算）
+    /// (默认：0)
+    cooldown?: LevelBasedValue,
+    /// 初始魔力消耗（按最终档位结算）
+    /// (默认：0)
+    initial_mana_cost?: LevelBasedValue,
+    /// 指定在以下情况下显示的消息：
+    /// - 没有足够的法力来施法
+    /// - 能力被阻止('usage_blocked'条件)
+    notification?: Notification,
+    /// 施法者是否可以在蓄力时移动
+    /// (默认：true)
+    can_move_while_casting?: boolean,
+    /// 在能力的各个阶段播放的音效
+    /// (蓄力档位不支持循环音效)
+    sound?: Sound,
+    /// 在能力的各个阶段播放的动画
+    /// (蓄力档位不支持循环动画)
+    animations?: Animations,
+}
+
+dispatch dragonsurvival:activation[additional_abilities:optional_charged] to struct OptionalChargedActivation {
+    /// 各档位所需蓄力时长（tick）
+    charged_duration_per_level: LevelBasedValue,
+    /// 总蓄力上限（tick），必填且必须为正
+    cast_time: LevelBasedValue,
+    /// 能否按满后继续按住不释放
+    /// (默认：true)
+    can_charge_exceed_cast_time?: boolean,
+    /// 超限窗口长度（tick）：须为正，且只在开启 can_charge_exceed_cast_time 时可写
+    /// (默认：不配置 = 无限按住，只有松手才释放)
+    max_overcharged_duration?: LevelBasedValue,
+    /// 冷却（按最终释放档位结算）
+    /// (默认：0)
+    cooldown?: LevelBasedValue,
+    /// 初始魔力消耗（按最终释放档位结算）
+    /// (默认：0)
+    initial_mana_cost?: LevelBasedValue,
+    /// 指定在以下情况下显示的消息：
+    /// - 没有足够的法力来施法
+    /// - 能力被阻止('usage_blocked'条件)
+    notification?: Notification,
+    /// 施法者是否可以在蓄力时移动
+    /// (默认：true)
+    can_move_while_casting?: boolean,
+    /// 在能力的各个阶段播放的音效
+    /// (蓄力档位不支持循环音效)
+    sound?: Sound,
+    /// 在能力的各个阶段播放的动画
+    /// (蓄力档位不支持循环动画)
+    animations?: Animations,
+}
+
+// --- 二级分派：音效 / 动画 / 触发点 ---
+// ⚠️ `Sound` / `Animations` / `Action` 三处都是按 activation_type **二级分派**的；
+// 不给蓄力档位补分支，这几个字段会落到 fallback（并集）→ 错误地允许 looping / channel_completion。
+//
+// ⚠️ 动画的分派名在补全包里有个**既有拼写错误**：`dragonsurvival:animatioin`（少个 n），
+// 补分支时必须照抄错拼，否则对不上。
+
+/// 蓄力档位没有「引导」阶段，因此不支持 looping 音效（与 dragonsurvival:simple 一致）
+dispatch dragonsurvival:sound[additional_abilities:charged] to struct { }
+dispatch dragonsurvival:sound[additional_abilities:optional_charged] to struct { }
+
+/// 蓄力档位没有「引导」阶段，因此不支持 looping 动画（与 dragonsurvival:simple 一致）
+dispatch dragonsurvival:animatioin[additional_abilities:charged] to struct { }
+dispatch dragonsurvival:animatioin[additional_abilities:optional_charged] to struct { }
+
+/// 触发点与 dragonsurvival:simple 同为 default / charging
+dispatch dragonsurvival:trigger_point[additional_abilities:charged] to struct {
+    /// 指定该效果触发的施法阶段
+    /// - `default` 默认（施法成功后触发）
+    /// - `charging` 施法蓄力途中触发
+    trigger_point?: SimpleTriggerPointData,
+}
+dispatch dragonsurvival:trigger_point[additional_abilities:optional_charged] to struct {
+    /// 指定该效果触发的施法阶段
+    /// - `default` 默认（施法成功后触发）
+    /// - `charging` 施法蓄力途中触发
+    trigger_point?: SimpleTriggerPointData,
+}
+
+// =====================================================================================================================
+// 五、触发类型（additional_abilities:activation_trigger）
+// =====================================================================================================================
+
+// --- additional_abilities:on_block_placed 放置方块时触发 ---
+dispatch dragonsurvival:activation_trigger[additional_abilities:on_block_placed] to struct OnBlockPlaced {
+    /// 在「方块战利品上下文」中求值
+    /// 可用参数：
+    /// - this_entity(施法者)
+    /// - block_state(目标位置的方块状态)
+    /// - origin(目标位置)
+    /// - block_entity(目标位置的方块实体)(可选)
+    /// ⚠️ 这里是战利品条件（minecraft:loot_condition_type），不是方块谓词类型
+    /// （写成 matching_block_tag 会直接导致世界无法加载）
+    /// 谓词(https://zh.minecraft.wiki/w/谓词)
+    condition?: LootCondition,
+}
+
+// --- additional_abilities:on_item_consumed 消耗物品时触发 ---
+dispatch dragonsurvival:activation_trigger[additional_abilities:on_item_consumed] to struct OnItemConsumed {
+    /// 物品谓词；省略 = 恒为真
+    /// 注意匹配的是**消耗前**的物品（蜂蜜瓶 → 玻璃瓶的转换不影响匹配结果）
+    item?: ItemPredicate,
+}
+
+// --- additional_abilities:on_ability_cast 主动技能结算后触发 ---
+dispatch dragonsurvival:activation_trigger[additional_abilities:on_ability_cast] to struct OnAbilityCast {
+    /// 技能集合：单个 id / id 列表 / "#标签"；省略 = 任意主动技能
+    /// （被动技能永远不构成「使用」，把被动自己的 id 写进来也不会自环）
+    abilities?: (
+        #[id(registry="dragonsurvival:dragon_ability", tags="allowed")] string |
+        [#[id="dragonsurvival:dragon_ability"] string] |
+    ),
+}

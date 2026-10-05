@@ -80,6 +80,8 @@ struct Activation {
     /// - `dragonsurvival:passive` 被动激活(持续不断的触发)
     /// - `dragonsurvival:simple` 简单激活(施法成功后只触发一次)
     /// - `dragonsurvival:channeled` 引导激活(施法成功后按住持续触发)
+    /// - `additional_abilities:charged` 蓄力档位(按住蓄力，松手按已达成档位释放)
+    /// - `additional_abilities:optional_charged` 可选性蓄力档位(蓄力期间用滚轮挑档位)
     activation_type: ActivationType,
     ...dragonsurvival:activation[[activation_type]],
 }
@@ -100,6 +102,10 @@ enum(string) ActivationType {
     Simple      = "dragonsurvival:simple",
     /// 引导激活(施法成功后按住持续触发)
     Channeled   = "dragonsurvival:channeled",
+    /// 蓄力档位：按住蓄力，松手按已达成档位释放
+    Charged          = "additional_abilities:charged",
+    /// 可选性蓄力档位：蓄力期间用滚轮挑档位（含取消）
+    Optional_Charged = "additional_abilities:optional_charged",
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -124,6 +130,9 @@ dispatch minecraft:resource[dragonsurvival:activation_trigger] to struct Activat
     /// - `dragonsurvival:on_block_break` 当破坏方块时
     /// - `dragonsurvival:on_key_pressed` 当按键按下时
     /// - `dragonsurvival:on_key_released` 当按键施放时
+    /// - `additional_abilities:on_block_placed` 当放下方块时
+    /// - `additional_abilities:on_item_consumed` 当消耗物品时
+    /// - `additional_abilities:on_ability_cast` 当主动技能结算后
     trigger_type: ActivationTriggers,
     ...dragonsurvival:activation_trigger[[trigger_type]],
 }
@@ -145,6 +154,12 @@ enum(string) ActivationTriggers {
     On_Key_Pressed      = "dragonsurvival:on_key_pressed",
     /// 当松开按键时触发
     On_Key_Released     = "dragonsurvival:on_key_released",
+    /// 放下方块时触发
+    On_Block_Placed     = "additional_abilities:on_block_placed",
+    /// 消耗物品时触发
+    On_Item_Consumed    = "additional_abilities:on_item_consumed",
+    /// 主动技能结算后触发
+    On_Ability_Cast     = "additional_abilities:on_ability_cast",
 }
 
 dispatch dragonsurvival:activation_trigger[dragonsurvival:constant] to struct ConstantTrigger { }
@@ -631,6 +646,9 @@ dispatch minecraft:resource[dragonsurvival:ability_targeting] to struct Targetin
     /// - `dragonsurvival:looking_at` 施法者正在看向的特定实体或方块
     /// - `dragonsurvival:self` 施法者自身
     /// - `dragonsurvival:disc` 玩家周围的圆柱形区域
+    /// - `additional_abilities:anti_dragon_breath` 施法者身后的反向锥形区域
+    /// - `additional_abilities:annulus` 施法者周围的环形区域(圆盘挖空内圈)
+    /// - `additional_abilities:domain` 在施法处留下的持续区域
     target_type: TargetingType,
     ...dragonsurvival:ability_targeting[[target_type]],
 }
@@ -648,6 +666,12 @@ enum(string) TargetingType {
     Self            = "dragonsurvival:self",
     /// 玩家周围的圆柱形区域
     Disc            = "dragonsurvival:disc",
+    /// 反向龙息锥形：锥体朝施法者身后延伸
+    Anti_Dragon_Breath = "additional_abilities:anti_dragon_breath",
+    /// 环形：圆盘挖空内圈
+    Annulus            = "additional_abilities:annulus",
+    /// 领域：在施法处留下持续存在的区域
+    Domain             = "additional_abilities:domain",
 }
 
 dispatch dragonsurvival:ability_targeting[dragonsurvival:area] to struct AreaTarget {
@@ -766,6 +790,11 @@ dispatch minecraft:resource[dragonsurvival:ability_entity_effect] to struct Enti
     /// - `dragonsurvival:experience` 调整玩家经验值
     /// - `dragonsurvival:cooldown_recovery` 能力/技能冷却时间恢复
     /// - `dragonsurvival:climbable` 允许龙攀爬指定的方块
+    /// - `additional_abilities:damage_reflection` 按比例把受到的伤害炸回周围敌人
+    /// - `additional_abilities:percentaged_damage` 按目标生命值百分比造成伤害
+    /// - `additional_abilities:simple_screen_vision` 镜头抖动 / 画面模糊 / 边缘遮罩
+    /// - `additional_abilities:enchantment_bonus` 让手持/身穿物品临时获得附魔
+    /// - `additional_abilities:durability` 按指定值增减可损坏物品的耐久
     effect_type: EntityEffectType,
     ...dragonsurvival:ability_entity_effect[[effect_type]],
 }
@@ -835,6 +864,16 @@ enum(string) EntityEffectType {
     Cooldown_Recovery   = "dragonsurvival:cooldown_recovery",
     /// 允许龙攀爬指定的方块
     Climbable           = "dragonsurvival:climbable",
+    /// 伤害反震：按比例把受到的伤害炸回周围敌人
+    Damage_Reflection    = "additional_abilities:damage_reflection",
+    /// 百分比伤害：按目标生命值百分比造成伤害
+    Percentaged_Damage   = "additional_abilities:percentaged_damage",
+    /// 简单屏幕视觉：镜头抖动 / 画面模糊 / 边缘遮罩
+    Simple_Screen_Vision = "additional_abilities:simple_screen_vision",
+    /// 临时附魔加成：让手持/身穿物品临时获得附魔
+    Enchantment_Bonus    = "additional_abilities:enchantment_bonus",
+    /// 耐久设置：按指定值增减可损坏物品的耐久
+    Durability           = "additional_abilities:durability",
 }
 
 enum(string) TargetingMode {
@@ -1627,6 +1666,9 @@ dispatch minecraft:resource[dragonsurvival:ability_block_effect] to struct Block
     /// - `dragonsurvival:use_item` 使用物品
     /// - `dragonsurvival:explosion` 造成爆炸
     /// - `dragonsurvival:block_harvest` 方块采集
+    /// - `additional_abilities:block_quake` 让方块跳一下(纯视觉)
+    /// - `additional_abilities:extinguish` 扑灭火焰方块 / 熄灭营火与蜡烛
+    /// - `additional_abilities:glow` 让方块发光(服务端同步给附近玩家)
     effect_type: BlockEffectType,
     ...dragonsurvival:ability_block_effect[[effect_type]],
 }
@@ -1654,6 +1696,12 @@ enum(string) BlockEffectType {
     Explosion       = "dragonsurvival:explosion",
     /// 方块采集
     Block_Harvest   = "dragonsurvival:block_harvest",
+    /// 方块震动：让方块跳一下（纯视觉）
+    Block_Quake = "additional_abilities:block_quake",
+    /// 熄灭：扑灭火焰方块 / 熄灭营火与蜡烛
+    Extinguish  = "additional_abilities:extinguish",
+    /// 方块发光：让方块发光（服务端同步给附近玩家）
+    Glow        = "additional_abilities:glow",
 }
 
 // ----- # ----- //

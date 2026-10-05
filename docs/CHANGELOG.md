@@ -78,6 +78,13 @@
    - 命令补全：`dragon` 的末级参数名应为 `targets`而非`target`
    - 命令补全：`dragon-growth` 的末级参数名应为 `dragon_growth`且类型为小数，并移除了写死的取值范围
    - 注册表ID补全：补上了 `entity_type` 中缺失的 8 个实体ID
+   - 为 `Additional Abilities for DS` 附属模组开放扩展点（取值仅在**本包**的枚举中登记，使附属模组的取值不再报 `type mismatch` 且能进补全列表；各组件自身的字段定义由附属模组侧的 `mcdoc/data/additional_abilities/dragon_ability.mcdoc` 提供）
+     - `dragon_ability` 的 `activation.activation_type` 新增取值 `additional_abilities:charged`蓄力档位 与 `additional_abilities:optional_charged`可选性蓄力档位
+     - `dragon_ability` 的 `activation.trigger.trigger_type` 新增取值 `additional_abilities:on_block_placed`放下方块、`additional_abilities:on_item_consumed`消耗物品、`additional_abilities:on_ability_cast`主动技能结算后
+     - `dragon_ability` 的 `target_selection.target_type` 新增取值 `additional_abilities:anti_dragon_breath`反向龙息锥形、`additional_abilities:annulus`环形、`additional_abilities:domain`领域
+     - `dragon_ability` 的 `entity_effect.effect_type` 新增取值 `additional_abilities:damage_reflection`伤害反震、`additional_abilities:percentaged_damage`百分比伤害、`additional_abilities:simple_screen_vision`简单屏幕视觉、`additional_abilities:enchantment_bonus`临时附魔加成、`additional_abilities:durability`耐久设置
+     - `dragon_ability` 的 `block_effect.effect_type` 新增取值 `additional_abilities:block_quake`方块震动、`additional_abilities:extinguish`熄灭、`additional_abilities:glow`方块发光
+     - 注册表ID补全：`attribute` 补上了附属模组的 `additional_abilities:dragon_breath_restriction`
 
 ## v2.0.4 - 2026-02-17
 > 该版本适用于 [DragonSurvival-1.21.1-v2.0.52-11.12.2025-all](https://www.curseforge.com/minecraft/mc-mods/dragons-survival/files/7320820) 版本及以上

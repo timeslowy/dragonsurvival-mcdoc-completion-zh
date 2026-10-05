@@ -1,5 +1,6 @@
 {
     "attribute": [
+        "additional_abilities:dragon_breath_restriction",
         "dragonsurvival:armor_ignore_chance",
         "dragonsurvival:block_break_radius",
         "dragonsurvival:dragon_ability_damage",
