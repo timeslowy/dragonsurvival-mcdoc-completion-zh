@@ -1,4 +1,4 @@
-# 龙生附属数据包开发 - 补全功能整合包
+# 龙生附属数据包开发 - 补全功能整合包 （Additional Abilities 拓展版）
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green.svg)](https://www.minecraft.net)
@@ -9,6 +9,8 @@
 ### 这是什么？
 
 这是一个为 [龙之生存 Mod](https://www.curseforge.com/minecraft/mc-mods/dragons-survival) 附属数据包开发提供 VSCode 智能补全支持的 MCDoc 工具包，在 [Spyglass 插件](https://github.com/SpyglassMC/Spyglass) 下工作，适用于 Minecraft 1.21.1 版本。早期版本中的大部分 MCDoc 文件源自 [dragonsurvivalteam.github.io](https://dragonsurvivalteam.github.io/partners/)。
+
+> 本分支在原作者@Dragon-LinFeng 的原插件基础上新增了对作者龙生附属`Additional Abilities for DS`的自定义技能组件支持，使附属作者可更便利增添数据包结构。
 
 ### 为什么创建这个项目？
 
@@ -41,6 +43,8 @@
  - **本工具包**：补充功能、中文翻译、Spyglass 适配
  
  本工具仅供学习交流使用，请支持官方作品。
+
+ > 除`Additional Abilities for DS`为新功能所增添的专属代码外，其余原著作权均归原作者 @Dragon-LinFeng 所有。
 
 ---
 
